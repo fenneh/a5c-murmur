@@ -59,7 +59,7 @@ def test_decision_arrives_while_waiting(bus):
         time.sleep(0.1)
         d.post(agent="b", kind="agree", action={"x": 1})
 
-    t = threading.Thread(target=slow_signers)
+    t = threading.Thread(target=slow_signers, daemon=True)
     t.start()
     out = d.wait_for_decision(quorum=2, timeout_s=2)
     t.join(timeout=2)

@@ -21,7 +21,7 @@ def test_subscribe_yields_in_order(bus):
             if len(seen) >= 2:
                 break
 
-    t = threading.Thread(target=consume)
+    t = threading.Thread(target=consume, daemon=True)
     t.start()
     t.join(timeout=2)
     assert seen == ["1", "2"]
@@ -64,7 +64,7 @@ def test_subscribe_resumes_from_last_id(bus):
                 break
 
     last1 = {"s": "0"}
-    t = threading.Thread(target=consume, args=(first_seen, last1))
+    t = threading.Thread(target=consume, args=(first_seen, last1), daemon=True)
     t.start()
     t.join(timeout=2)
     assert [i for _, i in first_seen] == ["1", "2"]
@@ -75,7 +75,7 @@ def test_subscribe_resumes_from_last_id(bus):
     last_seen_id = first_seen[-1][0]
     last2 = {"s": last_seen_id}
     second_seen = []
-    t2 = threading.Thread(target=consume, args=(second_seen, last2))
+    t2 = threading.Thread(target=consume, args=(second_seen, last2), daemon=True)
     t2.start()
     time.sleep(0.3)
     t2.join(timeout=2)

@@ -17,7 +17,7 @@ def test_agent_handles_messages(bus):
                 self.stop()
 
     agent = Sink(bus=bus, block_ms=200)
-    t = threading.Thread(target=agent.run)
+    t = threading.Thread(target=agent.run, daemon=True)
     t.start()
     # Default last_ids="$" means new-only, so we publish AFTER the agent has
     # subscribed (give it a tick to enter the loop).
@@ -37,7 +37,7 @@ def test_agent_heartbeat_writes_status(bus):
             pass
 
     agent = Idle(bus=bus, block_ms=100, heartbeat_interval_s=0.1)
-    t = threading.Thread(target=agent.run)
+    t = threading.Thread(target=agent.run, daemon=True)
     t.start()
     time.sleep(0.4)
     agent.stop()
@@ -62,7 +62,7 @@ def test_agent_survives_handler_exception(bus):
                 self.stop()
 
     agent = Flaky(bus=bus, block_ms=100)
-    t = threading.Thread(target=agent.run)
+    t = threading.Thread(target=agent.run, daemon=True)
     t.start()
     time.sleep(0.1)
     bus.publish("bus:flaky", {"i": "1"})
