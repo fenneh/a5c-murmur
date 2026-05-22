@@ -1,0 +1,41 @@
+{% extends "base.html" %}
+{% block title %}{{ task_id }} · a5c-murmur{% endblock %}
+{% block content %}
+<hgroup>
+  <h2><code>{{ task_id }}</code></h2>
+  {% if decision %}
+    <p>decision <span class="tag tag-{{ decision.status }}">{{ decision.status }}</span></p>
+  {% endif %}
+</hgroup>
+
+{% if decision and decision.action_json %}
+<article>
+  <header><strong>agreed action</strong></header>
+  <pre><code>{{ decision.action_json }}</code></pre>
+  <footer><small class="muted">signed by {{ decision.signers_json }}</small></footer>
+</article>
+{% endif %}
+
+<h3>transcript</h3>
+{% if not messages %}
+<p class="muted">No messages.</p>
+{% else %}
+<table>
+  <thead><tr><th>round</th><th>agent</th><th>kind</th><th>text / action</th><th>ts</th></tr></thead>
+  <tbody>
+  {% for m in messages %}
+    <tr>
+      <td>r{{ m.round }}</td>
+      <td><strong>{{ m.agent }}</strong></td>
+      <td><span class="tag tag-{{ m.kind }}">{{ m.kind }}</span></td>
+      <td>
+        {% if m.text %}{{ m.text }}{% endif %}
+        {% if m.action_json %}<pre><code>{{ m.action_json }}</code></pre>{% endif %}
+      </td>
+      <td><small class="muted">{{ fmt_ts(m.ts) }}</small></td>
+    </tr>
+  {% endfor %}
+  </tbody>
+</table>
+{% endif %}
+{% endblock %}

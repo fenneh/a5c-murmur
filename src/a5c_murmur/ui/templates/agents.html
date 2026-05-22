@@ -1,0 +1,23 @@
+{% extends "base.html" %}
+{% block content %}
+<h2>agents</h2>
+{% if not agents %}
+<p class="muted">No agents have registered.</p>
+{% else %}
+<table>
+  <thead><tr><th>role</th><th>status</th><th>active</th><th>pid</th><th>last seen</th><th>last error</th></tr></thead>
+  <tbody>
+  {% for a in agents %}
+    <tr class="{% if a.stale %}stale{% endif %}">
+      <td><strong>{{ a.role }}</strong></td>
+      <td>{{ a.status }}</td>
+      <td>{{ a.active_tasks }}</td>
+      <td><small>{{ a.pid or "—" }}</small></td>
+      <td><small class="muted">{{ fmt_ts(a.last_seen) }}</small></td>
+      <td><small class="muted">{{ a.last_error or "" }}</small></td>
+    </tr>
+  {% endfor %}
+  </tbody>
+</table>
+{% endif %}
+{% endblock %}

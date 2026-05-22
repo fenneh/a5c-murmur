@@ -1,0 +1,28 @@
+.muted { color: var(--muted-color, #888); }
+.stale { opacity: 0.55; }
+.tag {
+  display: inline-block;
+  padding: 0.05rem 0.5rem;
+  border-radius: 999px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  border: 1px solid currentColor;
+  margin-right: 0.25rem;
+}
+.tag-agreed     { color: #2da55a; }
+.tag-no_action  { color: #999; }
+.tag-timeout    { color: #c33; }
+.tag-aborted    { color: #c33; }
+.tag-propose    { color: #2d7bd3; }
+.tag-challenge  { color: #d37b2d; }
+.tag-revise     { color: #b46bcd; }
+.tag-agree      { color: #2da55a; }
+.tag-decide     { color: #1a7a3f; }
+.tag-abort      { color: #c33; }
+.tag-intro      { color: #555; }
+.tag-system     { color: #888; }
+.tag-user       { color: #555; }
+.tag-research   { color: #2d7bd3; }
+.tag-err        { color: #c33; }
+table { font-size: 0.92rem; }
+pre code { white-space: pre-wrap; word-break: break-word; }

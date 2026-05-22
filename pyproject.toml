@@ -1,0 +1,58 @@
+[project]
+name = "a5c-murmur"
+version = "0.1.0"
+description = "Agentic communication bus with a structured debate primitive."
+readme = "README.md"
+license = { text = "MIT" }
+requires-python = ">=3.11"
+authors = [{ name = "fenneh" }]
+keywords = ["agents", "messaging", "redis", "ai", "consensus"]
+classifiers = [
+  "License :: OSI Approved :: MIT License",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "Topic :: Scientific/Engineering :: Artificial Intelligence",
+]
+
+dependencies = [
+  "redis>=5.0",
+  "fastapi>=0.110",
+  "uvicorn>=0.27",
+  "jinja2>=3.1",
+  "pydantic>=2.6",
+]
+
+[project.optional-dependencies]
+dev = [
+  "pytest>=8",
+  "pytest-asyncio>=0.23",
+  "ruff>=0.5",
+  "fakeredis>=2.20",
+  "httpx>=0.27",
+]
+
+[project.scripts]
+a5c-murmur = "a5c_murmur.server.app:main"
+
+[project.urls]
+Homepage = "https://github.com/fenneh/a5c-murmur"
+Issues = "https://github.com/fenneh/a5c-murmur/issues"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/a5c_murmur"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "W", "UP", "B"]
+ignore = ["E501"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+asyncio_mode = "auto"

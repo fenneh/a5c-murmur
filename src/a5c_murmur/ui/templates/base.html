@@ -1,0 +1,27 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>{% block title %}a5c-murmur{% endblock %}</title>
+<link rel="stylesheet" href="/ui/static/pico.min.css">
+<link rel="stylesheet" href="/ui/static/app.css">
+</head>
+<body>
+<header class="container">
+  <nav>
+    <ul><li><strong><a href="/ui">a5c-murmur</a></strong></li></ul>
+    <ul>
+      <li><a href="/ui/agents">agents</a></li>
+      <li><a href="/ui/debates">debates</a></li>
+    </ul>
+  </nav>
+</header>
+<main class="container">
+{% block content %}{% endblock %}
+</main>
+<footer class="container muted">
+  <small>a5c-murmur</small>
+</footer>
+</body>
+</html>

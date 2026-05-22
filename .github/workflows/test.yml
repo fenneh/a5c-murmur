@@ -1,0 +1,52 @@
+name: tests
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.11", "3.12"]
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: install uv
+        run: |
+          curl -LsSf https://astral.sh/uv/install.sh | sh
+          echo "$HOME/.local/bin" >> $GITHUB_PATH
+
+      - name: cache uv data
+        uses: actions/cache@v5
+        with:
+          path: |
+            ~/.cache/uv
+            ~/.local/share/uv
+          key: uv-${{ runner.os }}-${{ matrix.python-version }}-${{ hashFiles('uv.lock', 'pyproject.toml') }}
+          restore-keys: |
+            uv-${{ runner.os }}-${{ matrix.python-version }}-
+
+      - name: install python ${{ matrix.python-version }}
+        run: uv python install ${{ matrix.python-version }}
+
+      - name: install dependencies
+        run: uv sync --extra dev
+
+      - name: ruff format check
+        run: uv run ruff format --check src tests examples
+
+      - name: ruff lint
+        run: uv run ruff check src tests examples
+
+      - name: pytest
+        env:
+          A5C_MURMUR_BUS: memory
+        run: uv run pytest -q --tb=short

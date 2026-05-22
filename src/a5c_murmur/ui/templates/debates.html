@@ -1,0 +1,28 @@
+{% extends "base.html" %}
+{% block content %}
+<h2>debates</h2>
+{% if not debates %}
+<p class="muted">No debates yet.</p>
+{% else %}
+<table>
+  <thead><tr><th>task</th><th>label</th><th>decision</th><th>signers</th><th>created</th></tr></thead>
+  <tbody>
+  {% for d in debates %}
+    <tr>
+      <td><a href="/ui/debates/{{ d.task_id }}"><code>{{ d.task_id }}</code></a></td>
+      <td>{{ d.label or "—" }}</td>
+      <td>
+        {% if d.decision %}
+          <span class="tag tag-{{ d.decision.status }}">{{ d.decision.status }}</span>
+        {% else %}
+          <span class="muted">open</span>
+        {% endif %}
+      </td>
+      <td><small>{{ d.decision.signers_json if d.decision else "" }}</small></td>
+      <td><small class="muted">{{ fmt_ts(d.created_at) }}</small></td>
+    </tr>
+  {% endfor %}
+  </tbody>
+</table>
+{% endif %}
+{% endblock %}
