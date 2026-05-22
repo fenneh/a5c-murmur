@@ -117,6 +117,51 @@ def api_debate_live(task_id: str):
     return {"task_id": task_id, "messages": messages}
 
 
+@app.get("/api/debates/{task_id}/tools")
+def api_debate_tools(task_id: str):
+    """All tool calls recorded for a task."""
+    j = get_journal()
+    return j.tool_calls_for(task_id)
+
+
+@app.get("/api/agents/{role}")
+def api_agent(role: str):
+    """One agent's status plus their recent messages from the journal."""
+    bus = get_bus()
+    status = bus.hget_all(f"agent:{role}:status")
+    if not status:
+        raise HTTPException(status_code=404, detail=f"no agent {role!r}")
+    last_seen = float(status.get("last_seen", "0") or "0")
+    return {
+        "role": role,
+        "status": status.get("status", "unknown"),
+        "pid": status.get("pid"),
+        "last_seen": last_seen,
+        "age_seconds": time.time() - last_seen if last_seen else None,
+        "active_tasks": int(status.get("active_tasks", "0") or "0"),
+        "last_error": status.get("last_error"),
+        "stale": last_seen and (time.time() - last_seen) > 120,
+        # Anything else the bus put in the status hash (custom adapters
+        # may add fields like tokens_today_gbp, task, etc).
+        "extra": {
+            k: v
+            for k, v in status.items()
+            if k not in {"status", "pid", "last_seen", "active_tasks", "last_error"}
+        },
+    }
+
+
+@app.get("/api/bus/recent")
+def api_bus_recent(stream: str, limit: int = 20):
+    """Recent messages from any stream. Useful for inspecting bus:fixtures,
+    bus:inplay, bus:notifications, etc."""
+    bus = get_bus()
+    raw = bus.history(stream)
+    # bus.history is oldest-first; show newest first and cap.
+    raw = list(reversed(raw))[:limit]
+    return [{"id": msg_id, "fields": fields} for msg_id, fields in raw]
+
+
 mount_ui(app, get_bus=get_bus, get_journal=get_journal)
 
 

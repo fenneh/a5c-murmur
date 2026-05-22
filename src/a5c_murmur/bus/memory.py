@@ -92,9 +92,19 @@ class InMemoryBus:
         with self._cv:
             self._hashes[key].update(fields)
 
+    def hget(self, key: str, field: str) -> str | None:
+        with self._cv:
+            return self._hashes.get(key, {}).get(field)
+
     def hget_all(self, key: str) -> dict[str, str]:
         with self._cv:
             return dict(self._hashes.get(key, {}))
+
+    def expire(self, key: str, seconds: int) -> bool:
+        # In-memory bus doesn't enforce TTLs. This is for tests and demos
+        # so the no-op keeps the interface consistent.
+        with self._cv:
+            return key in self._hashes or key in self._streams
 
     def keys(self, pattern: str) -> list[str]:
         import fnmatch

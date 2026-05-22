@@ -61,8 +61,15 @@ class RedisBus:
     def hset(self, key: str, fields: dict[str, str]) -> None:
         self._r.hset(key, mapping=fields)
 
+    def hget(self, key: str, field: str) -> str | None:
+        v = self._r.hget(key, field)
+        return v if v is not None else None
+
     def hget_all(self, key: str) -> dict[str, str]:
         return self._r.hgetall(key) or {}
+
+    def expire(self, key: str, seconds: int) -> bool:
+        return bool(self._r.expire(key, seconds))
 
     def keys(self, pattern: str) -> list[str]:
         return list(self._r.scan_iter(match=pattern))

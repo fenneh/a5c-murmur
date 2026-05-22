@@ -94,3 +94,69 @@ def test_debate_detail_page(app, client):
 def test_debate_404(client):
     r = client.get("/ui/debates/does-not-exist")
     assert r.status_code == 404
+
+
+def test_api_debate_tools(app, client):
+    j = app.get_journal()
+    j.open_task("t-1")
+    j.record_tool_call(task_id="t-1", agent="a", tool="lookup", args={"q": "x"}, round=1)
+    j.record_tool_call(task_id="t-1", agent="b", tool="search", args={"q": "y"}, round=2)
+    r = client.get("/api/debates/t-1/tools")
+    assert r.status_code == 200
+    data = r.json()
+    assert len(data) == 2
+    assert {row["tool"] for row in data} == {"lookup", "search"}
+
+
+def test_api_agent_single(app, client):
+    _seed_bus(app.get_bus())
+    r = client.get("/api/agents/a")
+    assert r.status_code == 200
+    data = r.json()
+    assert data["role"] == "a"
+    assert data["status"] == "running"
+    assert data["pid"] == "1"
+
+
+def test_api_agent_404(client):
+    r = client.get("/api/agents/never-seen")
+    assert r.status_code == 404
+
+
+def test_api_agent_carries_extra_fields(app, client):
+    # Adapters may write custom fields (tokens_today_gbp, task, etc).
+    # They should land in the `extra` dict.
+    app.get_bus().hset(
+        "agent:custom:status",
+        {
+            "status": "alive",
+            "last_seen": "9999999999",
+            "pid": "42",
+            "tokens_today_gbp": "1.23",
+            "task": "epl:arsenal-v-chelsea",
+        },
+    )
+    r = client.get("/api/agents/custom")
+    assert r.status_code == 200
+    data = r.json()
+    assert data["extra"]["tokens_today_gbp"] == "1.23"
+    assert data["extra"]["task"] == "epl:arsenal-v-chelsea"
+
+
+def test_api_bus_recent(app, client):
+    bus = app.get_bus()
+    bus.publish("bus:fixtures", {"instrument": "epl:a-v-b", "task_id": "t-1"})
+    bus.publish("bus:fixtures", {"instrument": "epl:c-v-d", "task_id": "t-2"})
+    r = client.get("/api/bus/recent", params={"stream": "bus:fixtures", "limit": 5})
+    assert r.status_code == 200
+    data = r.json()
+    assert len(data) == 2
+    # Newest first.
+    assert data[0]["fields"]["task_id"] == "t-2"
+    assert data[1]["fields"]["task_id"] == "t-1"
+
+
+def test_api_bus_recent_unknown_stream(client):
+    r = client.get("/api/bus/recent", params={"stream": "nonexistent"})
+    assert r.status_code == 200
+    assert r.json() == []

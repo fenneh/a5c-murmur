@@ -40,8 +40,14 @@ class BusAdapter(Protocol):
     def hset(self, key: str, fields: dict[str, str]) -> None:
         """Write a presence / status hash. Used for agent heartbeats."""
 
+    def hget(self, key: str, field: str) -> str | None:
+        """Read a single field from a hash."""
+
     def hget_all(self, key: str) -> dict[str, str]:
         """Read a presence / status hash."""
+
+    def expire(self, key: str, seconds: int) -> bool:
+        """Set a TTL on a key. Returns True if applied."""
 
     def keys(self, pattern: str) -> list[str]:
         """List keys matching a glob pattern."""
