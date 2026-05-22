@@ -1,8 +1,6 @@
 import threading
 import time
 
-from a5c_murmur.bus import InMemoryBus
-
 
 def test_publish_and_history(bus):
     mid = bus.publish("s", {"a": "1"})
@@ -18,7 +16,7 @@ def test_subscribe_yields_in_order(bus):
     seen = []
 
     def consume():
-        for stream, msg_id, fields in bus.subscribe(["s"], last_ids={"s": "0"}, block_ms=200):
+        for _stream, _msg_id, fields in bus.subscribe(["s"], last_ids={"s": "0"}, block_ms=200):
             seen.append(fields["i"])
             if len(seen) >= 2:
                 break
@@ -60,7 +58,7 @@ def test_subscribe_resumes_from_last_id(bus):
     first_seen = []
 
     def consume(seen, last):
-        for stream, msg_id, fields in bus.subscribe(["s"], last_ids=last, block_ms=100):
+        for _stream, msg_id, fields in bus.subscribe(["s"], last_ids=last, block_ms=100):
             seen.append((msg_id, fields["i"]))
             if len(seen) >= 2:
                 break

@@ -1,7 +1,8 @@
 from __future__ import annotations
 
 import threading
-from typing import Iterator, Protocol
+from collections.abc import Iterator
+from typing import Protocol
 
 
 class BusAdapter(Protocol):

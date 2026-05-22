@@ -10,8 +10,9 @@ from a5c_murmur.schema import Decision, Message
 def app(tmp_path, monkeypatch):
     monkeypatch.setenv("A5C_MURMUR_BUS", "memory")
     monkeypatch.setenv("A5C_MURMUR_DB", str(tmp_path / "m.db"))
-    from a5c_murmur.server import app as srv_module
     import importlib
+
+    from a5c_murmur.server import app as srv_module
 
     importlib.reload(srv_module)
     # Reset module-level singletons.

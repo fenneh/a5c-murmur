@@ -2,7 +2,6 @@ import threading
 import time
 
 from a5c_murmur.agent import Agent
-from a5c_murmur.bus import InMemoryBus
 
 
 def test_agent_handles_messages(bus):
