@@ -57,3 +57,9 @@ class BusAdapter(Protocol):
 
     def trim(self, stream: str, maxlen: int) -> int:
         """Trim a stream to at most `maxlen` entries. Returns entries removed."""
+
+    def raw_client(self) -> object:
+        """Return the underlying transport client (e.g. a redis-py client)
+        for operations the adapter doesn't model. Escape hatch: callers
+        couple themselves to the concrete adapter by using it. Adapters
+        without a meaningful client should raise NotImplementedError."""

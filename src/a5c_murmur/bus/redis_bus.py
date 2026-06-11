@@ -81,3 +81,6 @@ class RedisBus:
 
     def trim(self, stream: str, maxlen: int) -> int:
         return self._r.xtrim(stream, maxlen=maxlen, approximate=False)
+
+    def raw_client(self):
+        return self._r

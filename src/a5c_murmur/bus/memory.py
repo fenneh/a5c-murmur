@@ -136,6 +136,9 @@ class InMemoryBus:
                 self._streams[stream] = entries[-maxlen:]
             return removed
 
+    def raw_client(self):
+        raise NotImplementedError("InMemoryBus has no underlying client")
+
 
 def _parse_id(s: str) -> tuple[int, int]:
     """Accept normal 'ms-seq' ids and the Redis specials '0', '-', '+', '$'.

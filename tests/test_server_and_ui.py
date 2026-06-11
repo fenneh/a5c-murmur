@@ -133,21 +133,21 @@ def test_api_agent_carries_extra_fields(app, client):
             "last_seen": "9999999999",
             "pid": "42",
             "tokens_today_gbp": "1.23",
-            "task": "epl:arsenal-v-chelsea",
+            "task": "job:alpha-42",
         },
     )
     r = client.get("/api/agents/custom")
     assert r.status_code == 200
     data = r.json()
     assert data["extra"]["tokens_today_gbp"] == "1.23"
-    assert data["extra"]["task"] == "epl:arsenal-v-chelsea"
+    assert data["extra"]["task"] == "job:alpha-42"
 
 
 def test_api_bus_recent(app, client):
     bus = app.get_bus()
-    bus.publish("bus:fixtures", {"instrument": "epl:a-v-b", "task_id": "t-1"})
-    bus.publish("bus:fixtures", {"instrument": "epl:c-v-d", "task_id": "t-2"})
-    r = client.get("/api/bus/recent", params={"stream": "bus:fixtures", "limit": 5})
+    bus.publish("bus:events", {"item": "alpha", "task_id": "t-1"})
+    bus.publish("bus:events", {"item": "beta", "task_id": "t-2"})
+    r = client.get("/api/bus/recent", params={"stream": "bus:events", "limit": 5})
     assert r.status_code == 200
     data = r.json()
     assert len(data) == 2

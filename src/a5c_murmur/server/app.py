@@ -153,8 +153,7 @@ def api_agent(role: str):
 
 @app.get("/api/bus/recent")
 def api_bus_recent(stream: str, limit: int = 20):
-    """Recent messages from any stream. Useful for inspecting bus:fixtures,
-    bus:inplay, bus:notifications, etc."""
+    """Recent messages from any stream, newest first."""
     bus = get_bus()
     raw = bus.history(stream)
     # bus.history is oldest-first; show newest first and cap.
