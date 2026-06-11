@@ -3,7 +3,7 @@ from __future__ import annotations
 import os
 import time
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Query
 from fastapi.responses import RedirectResponse
 
 from a5c_murmur.bus import Bus, BusAdapter
@@ -79,7 +79,7 @@ def api_agents():
 
 
 @app.get("/api/debates")
-def api_debates(limit: int = 50):
+def api_debates(limit: int = Query(50, ge=1, le=500)):
     j = get_journal()
     tasks = j.list_tasks(limit=limit)
     out = []
@@ -152,12 +152,10 @@ def api_agent(role: str):
 
 
 @app.get("/api/bus/recent")
-def api_bus_recent(stream: str, limit: int = 20):
+def api_bus_recent(stream: str, limit: int = Query(20, ge=1, le=500)):
     """Recent messages from any stream, newest first."""
     bus = get_bus()
-    raw = bus.history(stream)
-    # bus.history is oldest-first; show newest first and cap.
-    raw = list(reversed(raw))[:limit]
+    raw = bus.history(stream, count=limit, reverse=True)
     return [{"id": msg_id, "fields": fields} for msg_id, fields in raw]
 
 

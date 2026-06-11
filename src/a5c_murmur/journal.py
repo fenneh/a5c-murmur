@@ -102,6 +102,23 @@ class Journal:
         conn.execute("UPDATE tasks SET closed_at = ? WHERE task_id = ?", (_t.time(), task_id))
         conn.commit()
 
+    def prune(self, *, before: float) -> int:
+        """Delete tasks created before `before` (unix timestamp) along with
+        their messages, decisions, and tool calls. Returns the number of
+        tasks removed. Call periodically; nothing prunes automatically."""
+        conn = self._connect()
+        ids = [
+            r["task_id"]
+            for r in conn.execute("SELECT task_id FROM tasks WHERE created_at < ?", (before,))
+        ]
+        if not ids:
+            return 0
+        marks = ",".join("?" * len(ids))
+        for table in ("messages", "tool_calls", "decisions", "tasks"):
+            conn.execute(f"DELETE FROM {table} WHERE task_id IN ({marks})", ids)
+        conn.commit()
+        return len(ids)
+
     def list_tasks(self, *, limit: int = 50) -> list[dict[str, Any]]:
         conn = self._connect()
         rows = conn.execute(

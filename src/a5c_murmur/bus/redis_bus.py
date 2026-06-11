@@ -8,19 +8,22 @@ from collections.abc import Iterator
 class RedisBus:
     """Default production adapter. Wraps redis-py with the BusAdapter shape."""
 
-    def __init__(self, url: str | None = None, *, decode_responses: bool = True):
+    def __init__(self, url: str | None = None, *, decode_responses: bool = True, client=None):
+        if client is not None:
+            self._r = client
+            return
         try:
             import redis
         except ImportError as e:
-            raise ImportError(
-                "RedisBus needs the redis package. Install with: uv add a5c-murmur"
-            ) from e
+            raise ImportError("RedisBus needs the redis package. Install with: uv add redis") from e
         self._r = redis.from_url(
             url or os.environ.get("REDIS_URL", "redis://localhost:6379"),
             decode_responses=decode_responses,
         )
 
-    def publish(self, stream: str, fields: dict[str, str]) -> str:
+    def publish(self, stream: str, fields: dict[str, str], *, maxlen: int | None = None) -> str:
+        if maxlen is not None:
+            return self._r.xadd(stream, fields, maxlen=maxlen, approximate=True)
         return self._r.xadd(stream, fields)
 
     def history(
@@ -30,8 +33,11 @@ class RedisBus:
         start: str = "-",
         end: str = "+",
         count: int | None = None,
+        reverse: bool = False,
     ) -> list[tuple[str, dict[str, str]]]:
         kwargs = {"count": count} if count else {}
+        if reverse:
+            return self._r.xrevrange(stream, end, start, **kwargs)
         return self._r.xrange(stream, start, end, **kwargs)
 
     def subscribe(
@@ -67,6 +73,9 @@ class RedisBus:
 
     def hget_all(self, key: str) -> dict[str, str]:
         return self._r.hgetall(key) or {}
+
+    def hincrby_float(self, key: str, field: str, amount: float) -> float:
+        return float(self._r.hincrbyfloat(key, field, amount))
 
     def expire(self, key: str, seconds: int) -> bool:
         return bool(self._r.expire(key, seconds))

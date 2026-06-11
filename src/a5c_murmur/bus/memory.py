@@ -25,11 +25,13 @@ class InMemoryBus:
         self._hashes: dict[str, dict[str, str]] = defaultdict(dict)
         self._cv = threading.Condition()
 
-    def publish(self, stream: str, fields: dict[str, str]) -> str:
+    def publish(self, stream: str, fields: dict[str, str], *, maxlen: int | None = None) -> str:
         with self._cv:
             prev_id = self._streams[stream][-1][0] if self._streams[stream] else None
             msg_id = _new_id(prev_id)
             self._streams[stream].append((msg_id, dict(fields)))
+            if maxlen is not None and len(self._streams[stream]) > maxlen:
+                self._streams[stream] = self._streams[stream][-maxlen:]
             self._cv.notify_all()
             return msg_id
 
@@ -40,10 +42,13 @@ class InMemoryBus:
         start: str = "-",
         end: str = "+",
         count: int | None = None,
+        reverse: bool = False,
     ) -> list[tuple[str, dict[str, str]]]:
         with self._cv:
             entries = list(self._streams.get(stream, []))
         out = [e for e in entries if _between(e[0], start, end)]
+        if reverse:
+            out = out[::-1]
         if count is not None:
             out = out[:count]
         return out
@@ -99,6 +104,12 @@ class InMemoryBus:
     def hget_all(self, key: str) -> dict[str, str]:
         with self._cv:
             return dict(self._hashes.get(key, {}))
+
+    def hincrby_float(self, key: str, field: str, amount: float) -> float:
+        with self._cv:
+            new = float(self._hashes[key].get(field, "0") or "0") + amount
+            self._hashes[key][field] = repr(new)
+            return new
 
     def expire(self, key: str, seconds: int) -> bool:
         # In-memory bus doesn't enforce TTLs. This is for tests and demos

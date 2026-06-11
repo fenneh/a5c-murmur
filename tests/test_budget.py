@@ -103,3 +103,24 @@ def test_existing_spend_loaded_on_init(bus):
     assert a.spend_today == pytest.approx(2.5)
     a.track_spend(1.0)
     assert a.spend_today == pytest.approx(3.5)
+
+
+def test_budget_resets_on_day_rollover(bus):
+    a = _NoopAgent(bus=bus, daily_budget=5.0)
+    a._today = lambda: "2026-01-01"
+    a._spend_date = "2026-01-01"
+    a.track_spend(4.0)
+    assert a.spend_today == pytest.approx(4.0)
+    a._today = lambda: "2026-01-02"
+    a.track_spend(2.0)  # would exceed 5.0 if yesterday carried over
+    assert a.spend_today == pytest.approx(2.0)
+
+
+def test_budget_shared_across_instances(bus):
+    a = _NoopAgent(bus=bus, daily_budget=5.0)
+    b = _NoopAgent(bus=bus, daily_budget=5.0)
+    a.track_spend(3.0)
+    b.track_spend(1.0)
+    assert b.spend_today == pytest.approx(4.0)
+    with pytest.raises(BudgetExceeded):
+        a.track_spend(1.5)  # shared total 5.5 > 5.0

@@ -42,6 +42,26 @@ def test_keys_glob(bus):
     assert set(matches) == {"agent:a:status", "agent:b:status"}
 
 
+def test_publish_maxlen_trims(bus):
+    for i in range(10):
+        bus.publish("s", {"i": str(i)}, maxlen=3)
+    hist = bus.history("s")
+    assert [f["i"] for _, f in hist] == ["7", "8", "9"]
+
+
+def test_history_reverse(bus):
+    for i in range(5):
+        bus.publish("s", {"i": str(i)})
+    out = bus.history("s", count=2, reverse=True)
+    assert [f["i"] for _, f in out] == ["4", "3"]
+
+
+def test_hincrby_float(bus):
+    assert bus.hincrby_float("k", "f", 1.5) == 1.5
+    assert bus.hincrby_float("k", "f", 2.0) == 3.5
+    assert float(bus.hget("k", "f")) == 3.5
+
+
 def test_trim(bus):
     for i in range(10):
         bus.publish("s", {"i": str(i)})

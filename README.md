@@ -89,7 +89,38 @@ Message kinds: `intro`, `research`, `propose`, `challenge`, `revise`, `agree`, `
 | `RedisBus` (default) | production, multi-process, survives restarts | needs Redis on `REDIS_URL` |
 | `InMemoryBus` | tests, single-script demos | no external services |
 
-To add your own (NATS, Kafka, RabbitMQ), implement the seven methods in `BusAdapter`. Pass `bus=` to `Agent.__init__` or set `A5C_MURMUR_BUS=memory|redis` to pick at runtime.
+To add your own (NATS, Kafka, RabbitMQ), implement the methods in `BusAdapter`. Pass `bus=` to `Agent.__init__` or set `A5C_MURMUR_BUS=memory|redis` to pick at runtime.
+
+Need an operation the protocol doesn't model? `bus.raw_client()` returns the underlying client (redis-py for `RedisBus`). Using it couples your code to that adapter; `InMemoryBus` raises `NotImplementedError`.
+
+## Budget and kill-switch
+
+Agents can carry a daily spend cap:
+
+```python
+class Researcher(Agent):
+    role = "researcher"
+    streams = ["bus:jobs"]
+
+    def handle_message(self, stream, msg_id, fields):
+        result = call_llm(fields)
+        self.track_spend(result.cost)  # raises BudgetExceeded past the cap
+
+Researcher(daily_budget=5.0, kill_switch_path="/tmp/murmur.kill").run()
+```
+
+The running total lives in a shared hash (`agent:{role}:spend`, keyed by date) and is incremented atomically, so multiple processes running the same role share one budget. It resets at midnight local time. On overrun the agent writes the kill-switch file and raises `BudgetExceeded`; every agent configured with the same `kill_switch_path` pauses its consume loop until the file is removed.
+
+## Retention
+
+Streams and the journal grow until you bound them:
+
+- `bus.publish(stream, fields, maxlen=10_000)` trims on write (approximate `XADD MAXLEN` on Redis, cheap)
+- `Debate.open(task_id, maxlen=1_000)` caps a debate stream the same way
+- `bus.trim(stream, maxlen=...)` trims explicitly
+- `journal.prune(before=ts)` deletes tasks created before a unix timestamp, plus their messages, decisions, and tool calls
+
+Nothing prunes automatically. Run these from your own scheduler.
 
 ## Inspection UI
 

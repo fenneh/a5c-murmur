@@ -59,6 +59,7 @@ class Agent(ABC):
         self._pool: ThreadPoolExecutor | None = None
         self._active_tasks: dict[str, float] = {}
         self._active_lock = threading.Lock()
+        self._spend_date: str = self._today()
         self._spend_today: float = self._read_today_spend() if daily_budget else 0.0
 
     # ------------------------------------------------------------------
@@ -135,14 +136,18 @@ class Agent(ABC):
         while not self._stop.wait(self.heartbeat_interval_s):
             with self._active_lock:
                 active = len(self._active_tasks)
-            self.bus.hset(
-                STATUS_KEY_FMT.format(role=self.role),
-                {
-                    "last_seen": str(time.time()),
-                    "active_tasks": str(active),
-                    "pid": str(os.getpid()),
-                },
-            )
+            try:
+                self.bus.hset(
+                    STATUS_KEY_FMT.format(role=self.role),
+                    {
+                        "last_seen": str(time.time()),
+                        "active_tasks": str(active),
+                        "pid": str(os.getpid()),
+                    },
+                )
+            except Exception:
+                # Transient bus error must not kill the heartbeat thread.
+                continue
 
     def _mark_status(self, status: str) -> None:
         self.bus.hset(
@@ -179,9 +184,12 @@ class Agent(ABC):
         path.write_text(payload)
 
     # ---- budget tracking ---------------------------------------------
+    @staticmethod
+    def _today() -> str:
+        return time.strftime("%Y-%m-%d")
+
     def _read_today_spend(self) -> float:
-        today = time.strftime("%Y-%m-%d")
-        raw = self.bus.hget(SPEND_KEY_FMT.format(role=self.role), today)
+        raw = self.bus.hget(SPEND_KEY_FMT.format(role=self.role), self._today())
         try:
             return float(raw) if raw else 0.0
         except (TypeError, ValueError):
@@ -190,14 +198,19 @@ class Agent(ABC):
     def track_spend(self, cost: float) -> None:
         """Add ``cost`` to today's running total. If the total goes past
         ``daily_budget`` (non-zero), the kill-switch is engaged and
-        ``BudgetExceeded`` is raised. Persisted to a per-role Redis hash
-        ``agent:{role}:spend`` keyed by YYYY-MM-DD."""
+        ``BudgetExceeded`` is raised.
+
+        The total lives in a per-role hash ``agent:{role}:spend`` keyed by
+        YYYY-MM-DD and is incremented atomically, so multiple processes
+        running the same role share one budget. The counter resets at
+        midnight (local time) even for long-running processes."""
         if self.daily_budget <= 0:
             return
-        self._spend_today += cost
-        today = time.strftime("%Y-%m-%d")
+        today = self._today()
+        if today != self._spend_date:
+            self._spend_date = today
         spend_key = SPEND_KEY_FMT.format(role=self.role)
-        self.bus.hset(spend_key, {today: f"{self._spend_today:.6f}"})
+        self._spend_today = self.bus.hincrby_float(spend_key, today, cost)
         self.bus.expire(spend_key, 60 * 60 * 24 * 7)
         if self._spend_today > self.daily_budget:
             self.engage_kill_switch(
@@ -209,4 +222,7 @@ class Agent(ABC):
 
     @property
     def spend_today(self) -> float:
+        if self._spend_date != self._today():
+            self._spend_date = self._today()
+            self._spend_today = self._read_today_spend()
         return self._spend_today

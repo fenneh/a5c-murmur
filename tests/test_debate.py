@@ -86,3 +86,11 @@ def test_messages_are_collected_in_outcome(bus):
     kinds = [m.kind for m in out.messages]
     assert MessageKind.PROPOSE in kinds
     assert MessageKind.AGREE in kinds
+
+
+def test_debate_maxlen_caps_stream(bus):
+    d = Debate("t", bus, maxlen=2)
+    for i in range(5):
+        d.post(agent="a", kind="system", text=str(i))
+    msgs = d.history()
+    assert [m.text for m in msgs] == ["3", "4"]

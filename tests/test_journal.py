@@ -48,3 +48,31 @@ def test_tool_call_log(journal):
     calls = journal.tool_calls_for("t1")
     assert len(calls) == 1
     assert calls[0]["tool"] == "lookup"
+
+
+def test_prune_removes_old_tasks_and_children(journal):
+    import time
+
+    journal.open_task("old")
+    journal.record_message(Message.new(task_id="old", agent="a", kind="propose", action={"x": 1}))
+    journal.record_decision(
+        Decision(task_id="old", status="agreed", action=None, action_hash=None, signers=["a"])
+    )
+    journal.record_tool_call(task_id="old", agent="a", tool="lookup", args={"q": "x"})
+    time.sleep(0.01)
+    cutoff = time.time()
+    time.sleep(0.01)
+    journal.open_task("new")
+
+    removed = journal.prune(before=cutoff)
+    assert removed == 1
+    assert journal.messages_for("old") == []
+    assert journal.get_decision("old") is None
+    assert journal.tool_calls_for("old") == []
+    assert [t["task_id"] for t in journal.list_tasks()] == ["new"]
+
+
+def test_prune_noop_when_nothing_old(journal):
+    journal.open_task("t")
+    assert journal.prune(before=0) == 0
+    assert [t["task_id"] for t in journal.list_tasks()] == ["t"]

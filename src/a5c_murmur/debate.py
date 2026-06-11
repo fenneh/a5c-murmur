@@ -40,11 +40,19 @@ class DebateOutcome:
 class Debate:
     """A single task's discussion. The stream key is `task:{task_id}:debate`."""
 
-    def __init__(self, task_id: str, channel: BusAdapter, roster: list[str] | None = None):
+    def __init__(
+        self,
+        task_id: str,
+        channel: BusAdapter,
+        roster: list[str] | None = None,
+        *,
+        maxlen: int | None = None,
+    ):
         self.task_id = task_id
         self.bus = channel
         self.roster = list(roster) if roster else []
         self.stream = f"task:{task_id}:debate"
+        self.maxlen = maxlen
 
     @classmethod
     def open(
@@ -53,8 +61,9 @@ class Debate:
         *,
         channel: BusAdapter | None = None,
         roster: list[str] | None = None,
+        maxlen: int | None = None,
     ) -> Debate:
-        return cls(task_id, channel or Bus.open(), roster)
+        return cls(task_id, channel or Bus.open(), roster, maxlen=maxlen)
 
     # ------------------------------------------------------------------
     def post(
@@ -76,7 +85,7 @@ class Debate:
             round=round,
             in_reply_to=in_reply_to,
         )
-        self.bus.publish(self.stream, msg.to_redis_fields())
+        self.bus.publish(self.stream, msg.to_redis_fields(), maxlen=self.maxlen)
         return msg
 
     def history(self) -> list[Message]:

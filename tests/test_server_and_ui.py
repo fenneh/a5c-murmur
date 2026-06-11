@@ -160,3 +160,18 @@ def test_api_bus_recent_unknown_stream(client):
     r = client.get("/api/bus/recent", params={"stream": "nonexistent"})
     assert r.status_code == 200
     assert r.json() == []
+
+
+def test_api_bus_recent_caps_at_limit(app, client):
+    bus = app.get_bus()
+    for i in range(5):
+        bus.publish("bus:events", {"i": str(i)})
+    r = client.get("/api/bus/recent", params={"stream": "bus:events", "limit": 2})
+    assert r.status_code == 200
+    assert [d["fields"]["i"] for d in r.json()] == ["4", "3"]
+
+
+def test_api_limit_validation(client):
+    assert client.get("/api/debates", params={"limit": 0}).status_code == 422
+    assert client.get("/api/debates", params={"limit": 10000}).status_code == 422
+    assert client.get("/api/bus/recent", params={"stream": "s", "limit": -1}).status_code == 422
