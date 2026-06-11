@@ -64,6 +64,57 @@ class RedisBus:
                     yield s, msg_id, fields
                     last_ids[s] = msg_id
 
+    def _ensure_group(self, stream: str, group: str) -> None:
+        try:
+            self._r.xgroup_create(stream, group, id="$", mkstream=True)
+        except Exception as e:
+            if "BUSYGROUP" not in str(e):
+                raise
+
+    def subscribe_group(
+        self,
+        streams: list[str],
+        group: str,
+        consumer: str,
+        *,
+        block_ms: int = 5000,
+        count: int = 10,
+        min_idle_ms: int = 60_000,
+        stop: threading.Event | None = None,
+    ) -> Iterator[tuple[str, str, dict[str, str]]]:
+        for s in streams:
+            self._ensure_group(s, group)
+        # Claim entries left pending by dead consumers (XAUTOCLAIM walks the
+        # PEL; entries idle >= min_idle_ms move to this consumer).
+        for s in streams:
+            cursor = "0-0"
+            while True:
+                reply = self._r.xautoclaim(
+                    s, group, consumer, min_idle_time=min_idle_ms, start_id=cursor, count=count
+                )
+                next_cursor, claimed = reply[0], reply[1]
+                for msg_id, fields in claimed:
+                    yield s, msg_id, fields
+                if not claimed or next_cursor in ("0-0", cursor):
+                    break
+                cursor = next_cursor
+        while True:
+            if stop is not None and stop.is_set():
+                return
+            result = self._r.xreadgroup(
+                group, consumer, {s: ">" for s in streams}, count=count, block=block_ms
+            )
+            if stop is not None and stop.is_set():
+                return
+            if not result:
+                continue
+            for s, entries in result:
+                for msg_id, fields in entries:
+                    yield s, msg_id, fields
+
+    def ack(self, stream: str, group: str, msg_id: str) -> None:
+        self._r.xack(stream, group, msg_id)
+
     def hset(self, key: str, fields: dict[str, str]) -> None:
         self._r.hset(key, mapping=fields)
 

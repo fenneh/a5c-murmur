@@ -100,3 +100,70 @@ def test_subscribe_resumes_from_last_id(bus):
     time.sleep(0.3)
     t2.join(timeout=2)
     assert any(i == "3" for _, i in second_seen)
+
+
+def _create_group(bus, stream, group):
+    stop = threading.Event()
+    stop.set()
+    list(bus.subscribe_group([stream], group, "bootstrap", block_ms=10, stop=stop))
+
+
+def _consume_one(bus, stream, group, consumer, *, ack=True, min_idle_ms=60_000):
+    stop = threading.Event()
+    got = []
+    for s, mid, fields in bus.subscribe_group(
+        [stream], group, consumer, block_ms=100, min_idle_ms=min_idle_ms, stop=stop
+    ):
+        got.append((mid, fields))
+        if ack:
+            bus.ack(s, group, mid)
+        stop.set()
+    return got
+
+
+def test_subscribe_group_delivers_offline_messages(bus):
+    _create_group(bus, "bus:events", "workers")
+    bus.publish("bus:events", {"job": "alpha-42"})  # nobody is consuming
+    got = _consume_one(bus, "bus:events", "workers", "w-1")
+    assert [f for _, f in got] == [{"job": "alpha-42"}]
+    # Acked and cursor advanced: a second consumer sees nothing, even with
+    # min_idle_ms=0.
+    stop = threading.Event()
+    seen = []
+    t = threading.Thread(
+        target=lambda: seen.extend(
+            bus.subscribe_group(["bus:events"], "workers", "w-2", block_ms=50, min_idle_ms=0, stop=stop)
+        ),
+        daemon=True,
+    )
+    t.start()
+    time.sleep(0.3)
+    stop.set()
+    t.join(timeout=2)
+    assert seen == []
+
+
+def test_new_group_starts_at_tail(bus):
+    bus.publish("bus:events", {"job": "old"})
+    _create_group(bus, "bus:events", "workers")
+    bus.publish("bus:events", {"job": "new"})
+    got = _consume_one(bus, "bus:events", "workers", "w-1")
+    assert [f["job"] for _, f in got] == ["new"]
+
+
+def test_unacked_message_redelivered_via_claim(bus):
+    _create_group(bus, "bus:events", "workers")
+    bus.publish("bus:events", {"job": "alpha-42"})
+    # First consumer reads but never acks (simulated crash).
+    got1 = _consume_one(bus, "bus:events", "workers", "w-1", ack=False)
+    assert len(got1) == 1
+    # Second consumer claims the stale pending entry.
+    got2 = _consume_one(bus, "bus:events", "workers", "w-2", min_idle_ms=0)
+    assert got2 == got1
+    # Now acked: a third consumer gets nothing back.
+    stop = threading.Event()
+    stop.set()
+    got3 = list(
+        bus.subscribe_group(["bus:events"], "workers", "w-3", block_ms=10, min_idle_ms=0, stop=stop)
+    )
+    assert got3 == []

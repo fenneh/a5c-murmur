@@ -23,6 +23,9 @@ class InMemoryBus:
     def __init__(self) -> None:
         self._streams: dict[str, list[tuple[str, dict[str, str]]]] = defaultdict(list)
         self._hashes: dict[str, dict[str, str]] = defaultdict(dict)
+        # (stream, group) -> {"cursor": last delivered id,
+        #                     "pending": {msg_id: {"consumer", "fields", "ts"}}}
+        self._groups: dict[tuple[str, str], dict] = {}
         self._cv = threading.Condition()
 
     def publish(self, stream: str, fields: dict[str, str], *, maxlen: int | None = None) -> str:
@@ -92,6 +95,70 @@ class InMemoryBus:
                     self._cv.wait(timeout=timeout)
             if stop is not None and stop.is_set():
                 return
+
+    def _ensure_group_locked(self, stream: str, group: str) -> None:
+        key = (stream, group)
+        if key not in self._groups:
+            entries = self._streams.get(stream, [])
+            # New groups start at the tail, matching XGROUP CREATE ... $.
+            self._groups[key] = {"cursor": entries[-1][0] if entries else "0", "pending": {}}
+
+    def subscribe_group(
+        self,
+        streams: list[str],
+        group: str,
+        consumer: str,
+        *,
+        block_ms: int = 5000,
+        count: int = 10,
+        min_idle_ms: int = 60_000,
+        stop: threading.Event | None = None,
+    ) -> Iterator[tuple[str, str, dict[str, str]]]:
+        # Claim pending entries idle past min_idle_ms (crashed consumers).
+        claimed: list[tuple[str, str, dict[str, str]]] = []
+        with self._cv:
+            now = time.time()
+            for s in streams:
+                self._ensure_group_locked(s, group)
+                pending = self._groups[(s, group)]["pending"]
+                for msg_id in sorted(pending, key=_parse_id):
+                    entry = pending[msg_id]
+                    if (now - entry["ts"]) * 1000 >= min_idle_ms:
+                        entry["consumer"] = consumer
+                        entry["ts"] = now
+                        claimed.append((s, msg_id, dict(entry["fields"])))
+        yield from claimed
+
+        timeout = block_ms / 1000.0
+        while True:
+            if stop is not None and stop.is_set():
+                return
+            batch: list[tuple[str, str, dict[str, str]]] = []
+            with self._cv:
+                for s in streams:
+                    g = self._groups[(s, group)]
+                    for msg_id, fields in self._streams.get(s, []):
+                        if _gt(msg_id, g["cursor"]):
+                            g["cursor"] = msg_id
+                            g["pending"][msg_id] = {
+                                "consumer": consumer,
+                                "fields": dict(fields),
+                                "ts": time.time(),
+                            }
+                            batch.append((s, msg_id, fields))
+                            if len(batch) >= count:
+                                break
+                    if len(batch) >= count:
+                        break
+                if not batch:
+                    self._cv.wait(timeout=timeout)
+            yield from batch
+
+    def ack(self, stream: str, group: str, msg_id: str) -> None:
+        with self._cv:
+            g = self._groups.get((stream, group))
+            if g is not None:
+                g["pending"].pop(msg_id, None)
 
     def hset(self, key: str, fields: dict[str, str]) -> None:
         with self._cv:

@@ -43,6 +43,34 @@ class BusAdapter(Protocol):
         If `stop` is set the iterator returns. Adapters should check `stop`
         both before blocking and after the block returns."""
 
+    def subscribe_group(
+        self,
+        streams: list[str],
+        group: str,
+        consumer: str,
+        *,
+        block_ms: int = 5000,
+        count: int = 10,
+        min_idle_ms: int = 60_000,
+        stop: threading.Event | None = None,
+    ) -> Iterator[tuple[str, str, dict[str, str]]]:
+        """Durable at-least-once delivery through a consumer group.
+
+        The group is created on first use and starts at the stream tail
+        ('$'): a brand-new group only sees messages published after it
+        exists. Once the group exists, messages published while no consumer
+        is running are retained and delivered when one starts.
+
+        Before reading new messages, pending entries idle for at least
+        `min_idle_ms` (e.g. left behind by a crashed consumer) are claimed
+        by this consumer and re-yielded. Every yielded message stays pending
+        until `ack`ed, so handlers must be idempotent: an unacked message
+        will be delivered again."""
+
+    def ack(self, stream: str, group: str, msg_id: str) -> None:
+        """Acknowledge a message delivered via `subscribe_group`. Until a
+        message is acked it stays pending and is eligible for redelivery."""
+
     def hset(self, key: str, fields: dict[str, str]) -> None:
         """Write a presence / status hash. Used for agent heartbeats."""
 

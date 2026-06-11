@@ -94,3 +94,25 @@ def test_debate_maxlen_caps_stream(bus):
         d.post(agent="a", kind="system", text=str(i))
     msgs = d.history()
     assert [m.text for m in msgs] == ["3", "4"]
+
+
+def test_wait_collects_each_message_exactly_once(bus):
+    """Messages posted before and during the wait all land in the outcome,
+    with no duplicates from re-reading history."""
+    d = Debate("t", bus)
+    d.post(agent="a", kind="propose", action={"x": 1})
+
+    def trickle():
+        time.sleep(0.15)
+        d.post(agent="a", kind="agree", action={"x": 1})
+        time.sleep(0.15)
+        d.post(agent="b", kind="agree", action={"x": 1})
+
+    t = threading.Thread(target=trickle, daemon=True)
+    t.start()
+    out = d.wait_for_decision(quorum=2, timeout_s=3, poll_ms=50)
+    t.join(timeout=2)
+    assert out.status == "agreed"
+    assert sorted(out.signers) == ["a", "b"]
+    assert len(out.messages) == 3
+    assert len({m.msg_id for m in out.messages}) == 3

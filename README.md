@@ -4,6 +4,27 @@ A communication bus for AI agents, with a structured debate primitive that produ
 
 Redis Streams under the hood by default. Pluggable for other transports (in-memory for tests, NATS, Kafka, whatever you want to write an adapter for).
 
+## 60-second quickstart
+
+No Redis needed, the demo runs on the in-memory bus.
+
+```bash
+git clone https://github.com/fenneh/a5c-murmur && cd a5c-murmur
+uv sync
+uv run python examples/quickstart.py
+```
+
+Two agents: a planner proposes a config change, a reviewer signs off, the decision is written to a throwaway journal. You should see:
+
+```
+status:  agreed
+signers: ['planner', 'reviewer']
+action:  {'file': 'service.toml', 'set': {'workers': 8}}
+journal: {'task_id': 'cfg-rollout-7', 'status': 'agreed', ...}
+```
+
+The library itself:
+
 ```python
 from a5c_murmur import Bus, Agent
 
@@ -93,6 +114,24 @@ To add your own (NATS, Kafka, RabbitMQ), implement the methods in `BusAdapter`. 
 
 Need an operation the protocol doesn't model? `bus.raw_client()` returns the underlying client (redis-py for `RedisBus`). Using it couples your code to that adapter; `InMemoryBus` raises `NotImplementedError`.
 
+## Durable delivery
+
+By default an agent subscribes from the stream tail: messages published while it's down are gone. Opt in to at-least-once delivery with `durable=True`:
+
+```python
+Reviewer(durable=True).run()
+```
+
+This consumes through a consumer group (group = the agent's `role`, consumer = `{role}-{pid}`) and acks each message only after `handle_message` returns without raising. What you get:
+
+- messages published while no consumer is running are delivered when one starts
+- a handler exception leaves the message pending; it gets redelivered (after `claim_min_idle_ms`, default 60s) to this or another consumer of the same role, including across restarts
+- multiple processes with the same `role` share the group, so each message goes to one of them
+
+At-least-once means exactly that: a crash between handling and acking causes a redelivery. Durable handlers must be idempotent.
+
+The group is created on first use, starting at the stream tail. Messages published before any agent of that role has ever run are not delivered.
+
 ## Budget and kill-switch
 
 Agents can carry a daily spend cap:
@@ -136,6 +175,7 @@ Live agent presence, recent debates, full transcripts with the agreed action hig
 
 In [`examples/`](examples/):
 
+- `quickstart.py`: two agents, a proposal, an agreement, a journaled decision. No setup.
 - `chatbot_demo.py`: in-memory bus, two agents talking, no setup.
 - `redis_demo.py`: real Redis, two daemons publishing and consuming.
 - `debate_demo.py`: full propose / challenge / revise / agree cycle ending in a decision.

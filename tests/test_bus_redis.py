@@ -46,3 +46,51 @@ def test_trim(rbus):
     removed = rbus.trim("s", maxlen=3)
     assert removed == 7
     assert len(rbus.history("s")) == 3
+
+
+def _create_group(rbus, stream, group):
+    import threading
+
+    stop = threading.Event()
+    stop.set()
+    list(rbus.subscribe_group([stream], group, "bootstrap", block_ms=10, stop=stop))
+
+
+def _consume_one(rbus, stream, group, consumer, *, ack=True, min_idle_ms=60_000):
+    import threading
+
+    stop = threading.Event()
+    got = []
+    for s, mid, fields in rbus.subscribe_group(
+        [stream], group, consumer, block_ms=100, min_idle_ms=min_idle_ms, stop=stop
+    ):
+        got.append((mid, fields))
+        if ack:
+            rbus.ack(s, group, mid)
+        stop.set()
+    return got
+
+
+def test_subscribe_group_delivers_offline_messages(rbus):
+    _create_group(rbus, "bus:events", "workers")
+    rbus.publish("bus:events", {"job": "alpha-42"})
+    got = _consume_one(rbus, "bus:events", "workers", "w-1")
+    assert [f for _, f in got] == [{"job": "alpha-42"}]
+
+
+def test_new_group_starts_at_tail(rbus):
+    rbus.publish("bus:events", {"job": "old"})
+    _create_group(rbus, "bus:events", "workers")
+    rbus.publish("bus:events", {"job": "new"})
+    got = _consume_one(rbus, "bus:events", "workers", "w-1")
+    assert [f["job"] for _, f in got] == ["new"]
+
+
+def test_unacked_message_redelivered_via_autoclaim(rbus):
+    _create_group(rbus, "bus:events", "workers")
+    rbus.publish("bus:events", {"job": "alpha-42"})
+    got1 = _consume_one(rbus, "bus:events", "workers", "w-1", ack=False)
+    assert len(got1) == 1
+    # A replacement consumer claims the stale pending entry on startup.
+    got2 = _consume_one(rbus, "bus:events", "workers", "w-2", min_idle_ms=0)
+    assert got2 == got1

@@ -37,6 +37,12 @@ class DebateOutcome:
         )
 
 
+def _id_after(stream_id: str) -> str:
+    """Smallest stream id strictly greater than `stream_id` ('ms-seq')."""
+    ms, _, seq = stream_id.partition("-")
+    return f"{ms}-{int(seq or 0) + 1}"
+
+
 class Debate:
     """A single task's discussion. The stream key is `task:{task_id}:debate`."""
 
@@ -105,15 +111,18 @@ class Debate:
         - `timeout_s` elapses
         """
         deadline = time.time() + timeout_s
-        seen_msg_ids: set[str] = set()
+        last_id: str | None = None
         agree_signers: dict[str, set[str]] = defaultdict(set)
         agree_actions: dict[str, dict[str, Any]] = {}
         all_messages: list[Message] = []
 
         while time.time() < deadline:
-            new_msgs = [m for m in self.history() if m.msg_id not in seen_msg_ids]
-            for msg in new_msgs:
-                seen_msg_ids.add(msg.msg_id)
+            # Cursor over the stream: only read entries newer than the last
+            # one seen, not the full history every poll.
+            start = "-" if last_id is None else _id_after(last_id)
+            for stream_id, fields in self.bus.history(self.stream, start=start):
+                last_id = stream_id
+                msg = Message.from_redis_fields(fields)
                 all_messages.append(msg)
 
                 if msg.kind == MessageKind.ABORT:
