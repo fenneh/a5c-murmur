@@ -132,7 +132,9 @@ def test_subscribe_group_delivers_offline_messages(bus):
     seen = []
     t = threading.Thread(
         target=lambda: seen.extend(
-            bus.subscribe_group(["bus:events"], "workers", "w-2", block_ms=50, min_idle_ms=0, stop=stop)
+            bus.subscribe_group(
+                ["bus:events"], "workers", "w-2", block_ms=50, min_idle_ms=0, stop=stop
+            )
         ),
         daemon=True,
     )
